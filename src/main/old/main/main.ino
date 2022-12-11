@@ -1,52 +1,77 @@
-/*
-
-@Authorship: Chang-Hoon Lee
-
-*/
-
-#define BTSerial Serial1  // Mega 2560에서 TX3(D14), RX3(D15)에 연결하여 사용
-#define EN 22  // AT 명령어를 사용하기 위해서는 EN핀을 HIGH로 해야함
+// Bluetooth
+#define BTSerial Serial1 // TX1, RX1
+#define EN 22 // EN 핀
 #define BAUDRATE 9600
 
+// LCD
+#include <LiquidCrystal_I2C.h>
+#include <Wire.h>
+#define ROWS 3 // 행(줄) 수 
+char *comment[ROWS] = {
+  "GarbageCollector",
+  "Battery : 100%",
+  "Capacity : 0%",
+};
+int col[ROWS] = {0, 2, 4};
+LiquidCrystal_I2C lcd(0x27, 16, ROWS);
+
+// HyperSonic
+#define TRIG_front 24
+#define ECHO_front 25
+#define TRIG_in 26
+#define TRIG_in 27
+
+// ServoMotor
+#include <Servo.h>
+Servo servo_l;
+Servo servo_r;
+int servoPin_l = 28;
+int servoPin_r = 29;
+int servoPos_l = 0;
+int servoPos_l = 0;
+
+// DCMotor
 const int ENA =  9;
 const int ENB = 11;
-
 const int IN1 =  7;
 const int IN2 =  8;
 const int IN3 = 10;
 const int IN4 = 12;
-
 #define CW  0 // 시계 방향
 #define CCW 1 // 반시계 방향
-
 const int BUZ =  6;
-
 int MAS, MBS;
-
-// 엔코더(Encoder)
 #define LF 0
 #define RT 1
-
 int Lduration, Rduration;
-//boolean LcoderDir,RcoderDir;
 const byte encoder0pinA = 2;
 const byte encoder0pinB = 5;
-//byte encoder0PinALast;
 const byte encoder1pinA = 3;
 const byte encoder1pinB = 4;
-//byte encoder1PinALast;
-
 #define SPEED 100
 
 void setup() {
-  Serial.begin(9600);   
-  BTSerial.begin(BAUDRATE); 
+  // Bluetooth
+  Serial.begin(9600);
+  BTSerial.begin(BAUDRATE);
+  pinMode(EN, OUTPUT);
+  digitalWrite(EN, HIGH);
 
-  pinMode(EN, OUTPUT);                   //HC-05,   EN
-  digitalWrite(EN, HIGH); 
-  Serial.println("Select [Both NL & CR] in Serial Monitor");
-  Serial.println("AT command"); 
+  // LCD
+  lcd.init();
+  lcd.backlight();
 
+  // HyperSonic
+  pinMode(TRIG_front, OUTPUT);
+  pinMode(ECHO_front, INPUT);
+  pinMode(TRIG_in, OUTPUT);
+  pinMode(ECHO_in, INPUT);
+
+  // ServoMotor
+  servo_l.attach(servoPin_l);
+  servo_r.attach(servoPin_r);
+
+  // DCMotor
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
   pinMode(IN3, OUTPUT);
@@ -60,6 +85,45 @@ void setup() {
 }
 
 void loop() {
+  // Bluetooth
+  if (BTSerial.available()) {            // 블루투스가 데이터를 받으면      
+    Serial.write(BTSerial.read());       // 블루투스 데이터를 읽어 시리얼모니터로 보냄
+  }
+  if (Serial.available()) {              // 시리얼모니터가 데이터를 받으면
+    BTSerial.write(Serial.read());       // 시리얼모니터 데이터를 읽어 블루투스로 보냄
+  }
+
+  // LCD
+  for(int i=0; i<ROWS ; i++)
+  {
+    lcd.setCursor(0,i);           // 커서 위치 지정: i행 
+    lcd.print(comment[i]);     
+  }
+
+  // HyperSonic
+  long duration, distance;
+  digitalWrite(TRIG_front, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_front, LOW);
+
+  duration = pulseIn(ECHO_front, HIGH);
+  distance = ((float)(340* duration) / 10000) / 2;
+
+  Serial.print("\nDistance : ");
+  Serial.print(distance);
+  Serial.println(" cm");
+  
+  // ServoMotor
+  if (distance <= 10) {
+    servo_l.write(90);        
+    servo_r.write(90);        
+    delay(500);
+    servo_l.write(0);        
+    servo_r.write(0);        
+    delay(500);
+  }
+
+  // DCMOTOR
   if (BTSerial.available()) {       
     String direction = BTSerial.readString();
     Serial.println(direction);
@@ -176,12 +240,8 @@ void motorB_direction(int dir)
 
 void EnCoderInit()
 {
-  //LcoderDir = true;
-  //RcoderDir = true;	
   pinMode(8,INPUT);
   pinMode(9,INPUT);
-  //attachInterrupt(LF, LwheelSpeed, RISING);
-  //attachInterrupt(RT, RwheelSpeed, RISING);
 }
 
 void LwheelSpeed()
@@ -189,18 +249,6 @@ void LwheelSpeed()
 	if(digitalRead(encoder0pinB))
 		Lduration++;
 	else Lduration--;
-/*  int Lstate = digitalRead(encoder0pinA);
-  if((encoder0PinALast == LOW)&&Lstate==HIGH)
-  {
-    int val = digitalRead(encoder0pinB);
-    if(val == LOW && LcoderDir)  LcoderDir = false; //Lreverse
-    else if(val == HIGH && !LcoderDir)  LcoderDir = true;  //Lforward
-  } 
-  encoder0PinALast = Lstate;
-
-  if(!LcoderDir)  Lduration++;
-  else  Lduration--;
-*/   
 }
 
 void RwheelSpeed()
@@ -208,16 +256,4 @@ void RwheelSpeed()
 	if(digitalRead(encoder1pinB))
 		Rduration--;
 	else Rduration++;
-/*  int Rstate = digitalRead(encoder1pinA);
-  if((encoder1PinALast == LOW)&&Rstate==HIGH)
-  {
-    int val = digitalRead(encoder1pinB);
-    if(val == LOW && RcoderDir)  RcoderDir = false; //Rreverse
-    else if(val == HIGH && !RcoderDir)  RcoderDir = true;  //Rforward
-  }
-  encoder1PinALast = Rstate;
-
-  if(!RcoderDir)  Rduration--;
-  else  Rduration++;
-*/  
 }
