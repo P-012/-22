@@ -15,3 +15,6 @@
 - LCD2004A 1개
 - HC-05 1개 (블루투스 모듈)
 - 브레드보드 1개
+
+**주의:**
+- MyBluetooth 폴더를 'C:\Users\UserName\Documents\Arduino\libraries' 경로에 넣어야합니다.
